@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.cross_validation import KFold
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten
-from keras.layers import Convolution2D, MaxPooling2D
+from keras.layers import Convolution2D, AveragePooling2D
 
 consts = {
     'modelPath': './model/cnnmodel.ckpt',
@@ -14,15 +14,32 @@ consts = {
 def basicModel():
     """
     basic model structure:
-    conv 5*5*5 + maxpooling 2*2 + conv 5*5*15 + maxpooling 3*3 + flatten + dense + softmax
+    conv 5*5*5 + averagepooling 2*2 + conv 5*5*15 + averagepooling 3*3 + flatten + dense 30 + softmax
     """
     our_model = Sequential()
     our_model.add(Convolution2D(5, 5, 5, activation='relu', input_shape=(24, 24, 1)))
-    # max pooling tends to be better than avg pooling
-    our_model.add(MaxPooling2D(pool_size=(2, 2)))
-    # our_model.add(Dropout(0.25))
+    our_model.add(AveragePooling2D(pool_size=(2, 2)))
     our_model.add(Convolution2D(15, 5, 5, activation='relu'))
-    our_model.add(MaxPooling2D(pool_size=(3, 3)))
+    our_model.add(AveragePooling2D(pool_size=(3, 3)))
+    our_model.add(Flatten())
+    our_model.add(Dense(30, activation='relu'))
+    our_model.add(Dropout(0.25))
+    our_model.add(Dense(2, activation='softmax'))
+    our_model.compile(loss='categorical_crossentropy',
+                      optimizer='adam', metrics=['accuracy'])
+    return our_model
+
+
+def basicModel2():
+    """
+    deep model structure:
+    conv 5*5*15 + averagepooling 2*2 + conv 5*5*15 + averagepooling 3*3 + flatten + dense + softmax
+    """
+    our_model = Sequential()
+    our_model.add(Convolution2D(10, 5, 5, activation='relu', input_shape=(24, 24, 1)))
+    our_model.add(AveragePooling2D(pool_size=(2, 2)))
+    our_model.add(Convolution2D(10, 5, 5, activation='relu'))
+    our_model.add(AveragePooling2D(pool_size=(3, 3)))
     our_model.add(Flatten())
     our_model.add(Dense(30, activation='relu'))
     our_model.add(Dropout(0.25))
@@ -55,7 +72,7 @@ def train(train_data, model):
 
 def test(test_data, model):
     X_test, Y_test = construct_X_Y(test_data)
-    score = model.evaluate(X_test, Y_test, verbose=1)
+    score = model.evaluate(X_test, Y_test, verbose=0)
     print(score[1])
 
 
@@ -67,6 +84,6 @@ if __name__ == "__main__":
         tstk = np.asarray(list(data.keys()))[tst]
         train_data = dict((k, v) for k, v in data.items() if k in trk)
         test_data = dict((k, v) for k, v in data.items() if k in tstk)
-        our_model = basicModel()
+        our_model = basicModel2()
         train(train_data, our_model)
         test(test_data, our_model)
