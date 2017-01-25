@@ -30,7 +30,7 @@ def basicModel():
     our_model.add(Dense(2, activation='softmax'))
     our_model.compile(loss='categorical_crossentropy',
                       optimizer='adam', metrics=['accuracy'])
-    plot(model, to_file='basic_model.png')
+    plot(our_model, to_file='basic_model.png')
     return our_model
 
 
@@ -50,7 +50,7 @@ def CnnModel():
     our_model.add(Dense(2, activation='softmax'))
     our_model.compile(loss='categorical_crossentropy',
                       optimizer='adam', metrics=['accuracy'])
-    plot(model, to_file='basic_model.png')
+    plot(our_model, to_file='cnn_model.png')
     return our_model
 
 
