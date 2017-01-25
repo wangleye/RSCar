@@ -34,22 +34,23 @@ def basicModel():
     return our_model
 
 
-def ResModel():
+def CnnModel():
     """
     deep model structure:
     conv 5*5*15 + averagepooling 2*2 + conv 5*5*15 + averagepooling 3*3 + flatten + dense + softmax
     """
     our_model = Sequential()
-    our_model.add(Convolution2D(10, 5, 5, activation='relu', input_shape=(24, 24, 1)))
-    our_model.add(AveragePooling2D(pool_size=(2, 2)))
-    our_model.add(Convolution2D(10, 5, 5, activation='relu'))
-    our_model.add(AveragePooling2D(pool_size=(3, 3)))
+    our_model.add(Convolution2D(6, 3, 3, activation='relu', input_shape=(24, 24, 1)))
+    our_model.add(Convolution2D(6, 3, 3, activation='relu'))
+    our_model.add(Convolution2D(6, 3, 3, activation='relu'))
     our_model.add(Flatten())
+    our_model.add(Dropout(0.25))
     our_model.add(Dense(30, activation='relu'))
     our_model.add(Dropout(0.25))
     our_model.add(Dense(2, activation='softmax'))
     our_model.compile(loss='categorical_crossentropy',
                       optimizer='adam', metrics=['accuracy'])
+    plot(model, to_file='basic_model.png')
     return our_model
 
 
@@ -88,6 +89,6 @@ if __name__ == "__main__":
         tstk = np.asarray(list(data.keys()))[tst]
         train_data = dict((k, v) for k, v in data.items() if k in trk)
         test_data = dict((k, v) for k, v in data.items() if k in tstk)
-        our_model = basicModel2()
+        our_model = CnnModel()
         train(train_data, our_model)
         test(test_data, our_model)
