@@ -1,0 +1,38 @@
+200labeledfeatureengineering: feature engineering on 220 labeled data
+
+generateMidFile.py:feature engineering on sjtu data (first part file processing)
+featureEngineering.py: feature engineering on sjtu data (second part on feature ensemble)
+
+mapSim.py: map similarity
+
+oneclass: use one-class-svm to train classification model, both taxi/bus as '1' class does not perform good (220 labeled data is outlier from both distributions in sjtu data)
+
+twoclass: use randomforest/svm to train transfer-classification model
+
+features used: (see featureEngineering.py last few lines)
+
+distance:
+	feat1.mean distance
+	feat2.entropy on distances of each date
+define coverage: non-zero entries in 24*24 map:
+	feat3. mean coverage based on day
+	feat4. entropy on coverages of each date
+
+measure intra-date map similarity:
+define 3 similarity scores within a day:
+s1: sim(map6am-12am,map12am-18pm)
+s2: sim(map6am-12am,map18pm-24pm)
+s3: sim(map12am-18pm,map18pm-24pm)
+	feat5. s1 mean based on day
+	feat6. entropy on s1 of each date
+	feat7. s2 mean
+	feat8. s2 entropy
+	feat9. s3 mean
+	feat10. s3 entropy
+
+measure inter-date map similarity
+use full maps of each day (6am-24pm)
+	feat11.intradatesim_mean (typo, should be inter-date)
+	feat12.intradatesim_entropy (typo, should be inter-date)
+
+

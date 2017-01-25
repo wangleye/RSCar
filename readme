@@ -1,0 +1,39 @@
++classifier
+----+model: trained model saved
+----+cnn.py: cnn code
+----+dataloader.py: data loader from ../data
+----+stackClassifier.py: stacked classifier of cnn+svm **executable**
+----+svm.py: svm code
+----+svm.script.py: svm test code
+
++data
+----+datfiles: 220 labeled data (raw data, group by vins and sorted)
+----+datsample: samples from ./datafiles
+----+sjtu:sjtu dataset
+--------+allmat: all map (in matrix on vin/daily basis)
+--------+Bus:
+-------------+img: all png files of map matrix
+-------------+raw: raw data
+--------+Taxi:
+-------------+img: all png files of map matrix
+-------------+raw: raw data
+--------+label.csv : labels
+----+label.csv: label for 220 labeled data in datfiles
++feature
+----+map
+---------+full: whole day matrix
+---------+img: png file for map matrix
+---------+part: map matrix of (0:0-6am,1:6-12am,2:12-18pm,3:18-24pm)
+----+featureEngineering.py: extract features for 220 lableled data, output to feature_extracted.txt and ./map  **executable**
+----+mapSim.py: calculate map similarity
+----+feature_extracted.txt: svm feature extracted
++transfer: all code for transfer learning from sjtu dataset to 220 labeled dataset
+----+cnn.py
+----+crossvalidation.py: executable
+----+dataLoader.py
+----+labels.py: generate labels
+----+processDataBus/Taxi.py: generate feature
+----+rawdataloader.py: load 220 labeled raw data
+----+transferacc.py: calculate transfer accuracy
++readme
+
