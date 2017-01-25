@@ -3,15 +3,8 @@ import numpy as np
 from sklearn.cross_validation import KFold
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten
-from keras.layers import Convolution2D, AveragePooling2D
+from keras.layers import Convolution2D, AveragePooling2D, MaxPooling2D
 from keras.utils.visualize_util import plot
-from resnet import ResnetBuilder
-
-
-consts = {
-    'modelPath': './model/cnnmodel.ckpt',
-    'maxepoch': 25,
-}
 
 
 def basicModel():
@@ -40,9 +33,10 @@ def CnnModel():
     conv 5*5*15 + averagepooling 2*2 + conv 5*5*15 + averagepooling 3*3 + flatten + dense + softmax
     """
     our_model = Sequential()
-    our_model.add(Convolution2D(6, 3, 3, activation='relu', input_shape=(24, 24, 1)))
-    our_model.add(Convolution2D(6, 3, 3, activation='relu'))
-    our_model.add(Convolution2D(6, 3, 3, activation='relu'))
+    our_model.add(Convolution2D(5, 4, 4, activation='relu', input_shape=(24, 24, 1)))
+    our_model.add(MaxPooling2D(pool_size=(2, 2)))
+    our_model.add(Convolution2D(10, 4, 4, activation='relu'))
+    our_model.add(MaxPooling2D(pool_size=(2, 2)))
     our_model.add(Flatten())
     our_model.add(Dropout(0.25))
     our_model.add(Dense(30, activation='relu'))
@@ -69,16 +63,16 @@ def construct_X_Y(evaluation_data):
     return X_data, Y_data
 
 
-def train(train_data, model):
+def train(train_data, model, num_epoch):
     X_train, Y_train = construct_X_Y(train_data)
     model.fit(X_train, Y_train, batch_size=1,
-              nb_epoch=consts['maxepoch'], verbose=1)
+              nb_epoch=num_epoch, verbose=1)
 
 
 def test(test_data, model):
     X_test, Y_test = construct_X_Y(test_data)
     score = model.evaluate(X_test, Y_test, verbose=0)
-    print(score[1])
+    print(score)
 
 
 if __name__ == "__main__":
@@ -90,5 +84,6 @@ if __name__ == "__main__":
         train_data = dict((k, v) for k, v in data.items() if k in trk)
         test_data = dict((k, v) for k, v in data.items() if k in tstk)
         our_model = CnnModel()
-        train(train_data, our_model)
-        test(test_data, our_model)
+        for i in range(50):
+            train(train_data, our_model, 1)
+            test(test_data, our_model)
