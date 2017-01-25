@@ -4,6 +4,9 @@ from sklearn.cross_validation import KFold
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten
 from keras.layers import Convolution2D, AveragePooling2D
+from keras.utils.visualize_util import plot
+from resnet import ResnetBuilder
+
 
 consts = {
     'modelPath': './model/cnnmodel.ckpt',
@@ -27,10 +30,11 @@ def basicModel():
     our_model.add(Dense(2, activation='softmax'))
     our_model.compile(loss='categorical_crossentropy',
                       optimizer='adam', metrics=['accuracy'])
+    plot(model, to_file='basic_model.png')
     return our_model
 
 
-def basicModel2():
+def ResModel():
     """
     deep model structure:
     conv 5*5*15 + averagepooling 2*2 + conv 5*5*15 + averagepooling 3*3 + flatten + dense + softmax
