@@ -23,8 +23,8 @@ def basicModel():
     our_model.add(Flatten())
     our_model.add(Dense(30, activation='relu'))
     our_model.add(Dropout(0.3))
-    our_model.add(Dense(2, activation='softmax'))
-    our_model.compile(loss='categorical_crossentropy',
+    our_model.add(Dense(1, activation='sigmoid'))
+    our_model.compile(loss='binary_crossentropy',
                       optimizer='adam', metrics=['accuracy'])
     plot(our_model, to_file='basic_model.png')
     return our_model
@@ -46,8 +46,8 @@ def CnnModel():
     # our_model.add(Dropout(0.25))
     our_model.add(Dense(16, activation='relu'))
     our_model.add(Dropout(0.4))
-    our_model.add(Dense(2, activation='softmax'))
-    our_model.compile(loss='categorical_crossentropy',
+    our_model.add(Dense(1, activation='sigmoid'))
+    our_model.compile(loss='binary_crossentropy',
                       optimizer='adam', metrics=['accuracy'])
     plot(our_model, to_file='cnn_model.png')
     return our_model
@@ -71,8 +71,8 @@ def ResModel(n_channels=3):
     our_model.add(Flatten())
     our_model.add(Dense(16, activation='relu'))
     our_model.add(Dropout(0.4))
-    our_model.add(Dense(2, activation='softmax'))
-    our_model.compile(loss='categorical_crossentropy',
+    our_model.add(Dense(1, activation='sigmoid'))
+    our_model.compile(loss='binary_crossentropy',
                       optimizer='adam', metrics=['accuracy'])
     plot(our_model, to_file='res_model.png')
     return our_model
@@ -86,10 +86,10 @@ def construct_X_Y_day_level(evaluation_data):
         dat = evaluation_data[each]
         for d in dat['feature']:  # one car may have several days' data
             X_data.append(np.array(d).flatten())
-            Y_data.append(np.array(dat['label']).flatten())
+            Y_data.append(np.argmax(np.array(dat['label'])))
             cnt += 1
     X_data = np.array(X_data).reshape(cnt, 24, 24, 1)
-    Y_data = np.array(Y_data).reshape(cnt, 2)
+    Y_data = np.array(Y_data).reshape(cnt, 1)
     return X_data, Y_data
 
 
@@ -112,10 +112,10 @@ def construct_X_Y_car_level(evaluation_data):
         for i in range(len_feature):
             d = dat['feature'][i]
             X_data.append(np.array(d).flatten())
-        Y_data.append(np.array(dat['label']).flatten())
+        Y_data.append(np.argmax(np.array(dat['label'])))
         cnt += 1
     X_data = np.array(X_data).reshape(cnt, 24, 24, 8)
-    Y_data = np.array(Y_data).reshape(cnt, 2)
+    Y_data = np.array(Y_data).reshape(cnt, 1)
     return X_data, Y_data
 
 
@@ -134,14 +134,17 @@ def test_day_level(test_data, model):
         if len(all_traces) == 0:
             continue
         test_num += 1
-        Y_true = test_data[car_id]['label']
+        Y_true = np.argmax(np.array(test_data[car_id]['label']))
         X = []
         for each_day_trace in all_traces:
             X.append(np.array(each_day_trace).flatten())
         X = np.array(X).reshape(len(all_traces), 24, 24, 1)
         Y_predictions = model.predict(X)
+        # fine-tuning the prediction probability for one car
         Y_pred_probs = np.mean(Y_predictions, axis=0)
-        if np.argmax(Y_pred_probs) == np.argmax(Y_true):
+        # (np.mean(Y_predictions, axis=0) + np.max(Y_predictions, axis=0)) / 2.0
+        Y_pred_label = 1 if Y_pred_probs > 0.5 else 0
+        if Y_pred_label == Y_true:
             test_hit += 1
     acc = test_hit * 1.0 / test_num
     print(acc)
@@ -156,11 +159,12 @@ def test_ensemble_model(test_data, day_model, car_model):
         if len(all_traces) == 0:
             continue
         test_num += 1
-        Y_true = test_data[car_id]['label']
+        Y_true = np.argmax(np.array(test_data[car_id]['label']))
         test_data_car = {}
         test_data_car[car_id] = test_data[car_id]
         Y_pred_probs = predict_one_car_ensemble(test_data_car, day_model, car_model)
-        if np.argmax(Y_pred_probs) == np.argmax(Y_true):
+        Y_pred_label = 1 if Y_pred_probs > 0.5 else 0
+        if Y_pred_label == Y_true:
             test_hit += 1
     acc = test_hit * 1.0 / test_num
     print(acc)
@@ -173,11 +177,13 @@ def predict_one_car_ensemble(car_data, day_model, car_model):
     """
     X_day, Y_day = construct_X_Y_day_level(car_data)
     Y_predictions = day_model.predict(X_day)
-    Y_pred_day = np.mean(Y_predictions, axis=0)
+    Y_pred_day = (np.max(Y_predictions, axis=0) + np.mean(Y_predictions, axis=0)) / 2.0
+    # (np.max(Y_predictions, axis=0) + np.mean(Y_predictions, axis=0)) / 2.0
+    # np.mean(Y_predictions, axis=0)
 
     X_car, Y_car = construct_X_Y_car_level(car_data)
     Y_predictions = car_model.predict(X_car)
-    Y_pred_car = np.mean(Y_predictions, axis=0)
+    Y_pred_car = np.max(Y_predictions, axis=0)
 
     Y_pred_ensemble = (Y_pred_car + Y_pred_day) / 2.0
     return Y_pred_ensemble
@@ -206,10 +212,10 @@ if __name__ == "__main__":
 
     ensemble = True  # use both car_level and day_level model?
     car_level = False  # car_level or day_level, only valid when ensemble is False
-    num_epoch = 20
+    num_epoch = 10
     num_batch = 4
 
-    used_model = CnnModel  # choose from ResModel, CnnModel, basicModel
+    # used_model = basicModel  # choose from ResModel, CnnModel, basicModel
 
     is_data_augmentation = False  # use data augementation?
     times_of_augmentation = 3  # how many times more training pictures generated compared to original data
@@ -226,7 +232,7 @@ if __name__ == "__main__":
         if ensemble or car_level:
             INPUT_SHAPE = (24, 24, 8)
             X_train, Y_train = construct_X_Y_car_level(train_data)
-            car_model = used_model()
+            car_model = basicModel()
             car_model = train(X_train, Y_train, car_model, num_batch, num_epoch,
                               is_data_augmentation, times_of_augmentation)
             eval_measures[cnt, 1] = test_car_level(test_data, car_model)
@@ -235,7 +241,7 @@ if __name__ == "__main__":
         if ensemble or (not car_level):
             INPUT_SHAPE = (24, 24, 1)
             X_train, Y_train = construct_X_Y_day_level(train_data)
-            day_model = used_model()
+            day_model = CnnModel()
             day_model = train(X_train, Y_train, day_model, num_batch, num_epoch,
                               is_data_augmentation, times_of_augmentation)
             eval_measures[cnt, 2] = test_day_level(test_data, day_model)
