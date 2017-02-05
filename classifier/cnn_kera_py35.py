@@ -22,7 +22,7 @@ def basicModel():
     our_model.add(AveragePooling2D(pool_size=(3, 3)))
     our_model.add(Flatten())
     our_model.add(Dense(30, activation='relu'))
-    our_model.add(Dropout(0.3))
+    our_model.add(Dropout(0.5))
     our_model.add(Dense(1, activation='sigmoid'))
     our_model.compile(loss='binary_crossentropy',
                       optimizer='adam', metrics=['accuracy'])
@@ -33,19 +33,16 @@ def basicModel():
 def CnnModel():
     """
     deep model structure:
-    conv 4*4*6 + maxpooling 2*2 + conv 4*4*12 + maxpooling 2*2 + flatten + dense 30 + softmax
+    conv 3*3*8 + maxpooling 2*2 + conv 3*3*16 + maxpooling 2*2 + flatten + dense 16 + sigmoid
     """
     our_model = Sequential()
     our_model.add(Convolution2D(8, 3, 3, activation='relu', input_shape=INPUT_SHAPE))
     our_model.add(MaxPooling2D(pool_size=(2, 2)))
-    our_model.add(Convolution2D(8, 3, 3, activation='relu'))
-    our_model.add(MaxPooling2D(pool_size=(2, 2)))
     our_model.add(Convolution2D(16, 3, 3, activation='relu'))
     our_model.add(MaxPooling2D(pool_size=(2, 2)))
     our_model.add(Flatten())
-    # our_model.add(Dropout(0.25))
-    our_model.add(Dense(16, activation='relu'))
-    our_model.add(Dropout(0.4))
+    our_model.add(Dense(24, activation='relu'))
+    our_model.add(Dropout(0.5))
     our_model.add(Dense(1, activation='sigmoid'))
     our_model.compile(loss='binary_crossentropy',
                       optimizer='adam', metrics=['accuracy'])
@@ -119,14 +116,24 @@ def construct_X_Y_car_level(evaluation_data):
     return X_data, Y_data
 
 
-def test_car_level(test_data, model):
+def test_car_level(test_data, models):
     X_test, Y_test = construct_X_Y_car_level(test_data)
-    score = model.evaluate(X_test, Y_test, verbose=0)
-    print(score[1])
-    return score[1]  # accuracy
+    test_num = Y_test.shape[0]
+    predict_results = np.zeros(shape=(len(models), test_num, 1))
+    for i in range(len(models)):
+        predict_results[i] = models[i].predict(X_test)
+    
+    # calculate prediction accuracy by majority voting
+    predict_results = np.around(predict_results)
+    predict_results = np.mean(predict_results, axis=0)
+    predict_results = np.around(predict_results).astype(int)
+    accuracy = np.sum(predict_results==Y_test) / Y_test.size
+
+    print(accuracy)
+    return accuracy  # accuracy
 
 
-def test_day_level(test_data, model):
+def test_day_level(test_data, models):
     test_num = 0
     test_hit = 0
     for car_id in test_data.keys():
@@ -139,19 +146,23 @@ def test_day_level(test_data, model):
         for each_day_trace in all_traces:
             X.append(np.array(each_day_trace).flatten())
         X = np.array(X).reshape(len(all_traces), 24, 24, 1)
-        Y_predictions = model.predict(X)
-        # fine-tuning the prediction probability for one car
-        Y_pred_probs = np.mean(Y_predictions, axis=0)
-        # (np.mean(Y_predictions, axis=0) + np.max(Y_predictions, axis=0)) / 2.0
-        Y_pred_label = 1 if Y_pred_probs > 0.5 else 0
+
+        predict_results = np.zeros(shape=(len(models), 1))
+        for i in range(len(models)):
+            Y_predictions = models[i].predict(X)
+            Y_pred_label = np.around(np.mean(np.around(Y_predictions))).astype(int)
+            predict_results[i] = Y_pred_label
+        Y_pred_probs = np.mean(np.around(predict_results))
+        Y_pred_label = 1 if Y_pred_probs >= 0.5 else 0
         if Y_pred_label == Y_true:
             test_hit += 1
+
     acc = test_hit * 1.0 / test_num
     print(acc)
     return acc
 
 
-def test_ensemble_model(test_data, day_model, car_model):
+def test_ensemble_model(test_data, day_models, car_models):
     test_num = 0
     test_hit = 0
     for car_id in test_data.keys():
@@ -162,7 +173,7 @@ def test_ensemble_model(test_data, day_model, car_model):
         Y_true = np.argmax(np.array(test_data[car_id]['label']))
         test_data_car = {}
         test_data_car[car_id] = test_data[car_id]
-        Y_pred_probs = predict_one_car_ensemble(test_data_car, day_model, car_model)
+        Y_pred_probs = predict_one_car_ensemble(test_data_car, day_models, car_models)
         Y_pred_label = 1 if Y_pred_probs > 0.5 else 0
         if Y_pred_label == Y_true:
             test_hit += 1
@@ -171,21 +182,21 @@ def test_ensemble_model(test_data, day_model, car_model):
     return acc
 
 
-def predict_one_car_ensemble(car_data, day_model, car_model):
+def predict_one_car_ensemble(car_data, day_models, car_models):
     """
     ensemble two models for prediction
     """
+    Y_pred_models = np.zeros(shape=(len(day_models)+len(car_models), 1))
     X_day, Y_day = construct_X_Y_day_level(car_data)
-    Y_predictions = day_model.predict(X_day)
-    Y_pred_day = (np.max(Y_predictions, axis=0) + np.mean(Y_predictions, axis=0)) / 2.0
-    # (np.max(Y_predictions, axis=0) + np.mean(Y_predictions, axis=0)) / 2.0
-    # np.mean(Y_predictions, axis=0)
+    for i in range(len(day_models)):
+        Y_pred_days = day_models[i].predict(X_day)
+        Y_pred_models[i] = np.around(np.mean(np.around(Y_pred_days))).reshape(1,1)
 
     X_car, Y_car = construct_X_Y_car_level(car_data)
-    Y_predictions = car_model.predict(X_car)
-    Y_pred_car = np.max(Y_predictions, axis=0)
+    for i in range(len(car_models)):    
+        Y_pred_models[len(day_models)+i] = car_models[i].predict(X_car)
 
-    Y_pred_ensemble = (Y_pred_car + Y_pred_day) / 2.0
+    Y_pred_ensemble = np.mean(Y_pred_models)
     return Y_pred_ensemble
 
 
@@ -201,6 +212,15 @@ def train(X, Y, model, num_batch, num_epoch, is_augmentation, augmentation_times
         model.fit(X_train, Y_train, batch_size=num_batch, nb_epoch=num_epoch, verbose=1)
     return model
 
+def bootstrap(X_train, Y_train):
+    X_train_boot = np.zeros(shape=X_train.shape)
+    Y_train_boot = np.zeros(shape=Y_train.shape)
+    bootstrap_idx = np.random.choice(X_train.shape[0], size=X_train.shape[0], replace=True)
+    for boot_i in range(len(X_train)):
+        X_train_boot[boot_i] = X_train[bootstrap_idx[boot_i]]
+        Y_train_boot[boot_i] = Y_train[bootstrap_idx[boot_i]]
+    return X_train_boot, Y_train_boot
+
 
 if __name__ == "__main__":
     np.random.seed(123)  # expect reproduction, but Keras@Tensorflow still has problems (Keras Issue#2280)
@@ -209,9 +229,12 @@ if __name__ == "__main__":
     N = 5
     kf = KFold(n_splits=N)
     eval_measures = np.zeros((N, 3))  # index 0: ensemble acc, 1: car_level acc, 2: day_level acc
+    bagging = True # whether use bagging
+    bagging_times = 11 # times for bootstrap samples
+
 
     ensemble = True  # use both car_level and day_level model?
-    car_level = False  # car_level or day_level, only valid when ensemble is False
+    car_level = True  # car_level or day_level, only valid when ensemble is False
     num_epoch = 10
     num_batch = 4
 
@@ -232,23 +255,43 @@ if __name__ == "__main__":
         if ensemble or car_level:
             INPUT_SHAPE = (24, 24, 8)
             X_train, Y_train = construct_X_Y_car_level(train_data)
-            car_model = basicModel()
-            car_model = train(X_train, Y_train, car_model, num_batch, num_epoch,
+            if not bagging:
+                car_model = CnnModel()
+                car_model = train(X_train, Y_train, car_model, num_batch, num_epoch,
                               is_data_augmentation, times_of_augmentation)
-            eval_measures[cnt, 1] = test_car_level(test_data, car_model)
+                car_models = [car_model]
+            else:
+                car_models = []
+                for each_boot in range(bagging_times):
+                    car_model = CnnModel()
+                    X_train_boot, Y_train_boot = bootstrap(X_train, Y_train)
+                    car_model = train(X_train_boot, Y_train_boot, car_model, num_batch, num_epoch,
+                                is_data_augmentation, times_of_augmentation)
+                    car_models.append(car_model)
+            eval_measures[cnt, 1] = test_car_level(test_data, car_models)
 
         # day model
         if ensemble or (not car_level):
             INPUT_SHAPE = (24, 24, 1)
             X_train, Y_train = construct_X_Y_day_level(train_data)
-            day_model = CnnModel()
-            day_model = train(X_train, Y_train, day_model, num_batch, num_epoch,
-                              is_data_augmentation, times_of_augmentation)
-            eval_measures[cnt, 2] = test_day_level(test_data, day_model)
+            if not bagging:
+                day_model = CnnModel()
+                day_model = train(X_train, Y_train, day_model, num_batch, num_epoch,
+                          is_data_augmentation, times_of_augmentation)
+                day_models = [day_model]
+            else:
+                day_models = []
+                for each_boot in range(bagging_times):
+                    day_model = CnnModel()
+                    X_train_boot, Y_train_boot = bootstrap(X_train, Y_train)
+                    day_model = train(X_train_boot, Y_train_boot, day_model, num_batch, num_epoch,
+                                is_data_augmentation, times_of_augmentation)
+                    day_models.append(day_model)                   
+            eval_measures[cnt, 2] = test_day_level(test_data, day_models)
 
         # ensemble
         if ensemble:
-            eval_measures[cnt, 0] = test_ensemble_model(test_data, day_model, car_model)
+            eval_measures[cnt, 0] = test_ensemble_model(test_data, day_models, car_models)
 
         cnt += 1
 
