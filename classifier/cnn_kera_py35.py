@@ -274,7 +274,7 @@ if __name__ == "__main__":
             else:
                 car_models = []
                 for each_boot in range(bagging_times):
-                    car_model = CnnModel()
+                    car_model = CnnModel(input_shape=(24, 24, 8))
                     X_train_boot, Y_train_boot = bootstrap(X_train, Y_train)
                     car_model = train(X_train_boot, Y_train_boot, car_model, num_batch, num_epoch,
                                       times_of_augmentation)
@@ -292,7 +292,7 @@ if __name__ == "__main__":
             else:
                 day_models = []
                 for each_boot in range(bagging_times):
-                    day_model = CnnModel()
+                    day_model = CnnModel(input_shape=(24, 24, 1))
                     X_train_boot, Y_train_boot = bootstrap(X_train, Y_train)
                     day_model = train(X_train_boot, Y_train_boot, day_model, num_batch, num_epoch,
                                       times_of_augmentation)
