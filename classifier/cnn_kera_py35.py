@@ -29,7 +29,7 @@ def CnnModel(input_shape):
     return our_model
 
 
-def ResModel(n_channels=3, input_shpae):
+def ResModel(input_shape, n_channels=3):
     """
     residual model structure:
     input +
@@ -41,9 +41,9 @@ def ResModel(n_channels=3, input_shpae):
     num_res_clocks = 3
     kernel_size = (3, 3)
     # build first layer
-    our_model.add(building_residual_block(input_shpae, n_channels, kernel_size))
+    our_model.add(building_residual_block(input_shape, n_channels, kernel_size))
     for i in range(num_res_clocks - 1):
-        our_model.add(building_residual_block((input_shpae[0], input_shpae[1], n_channels), n_channels, kernel_size))
+        our_model.add(building_residual_block((input_shape[0], input_shape[1], n_channels), n_channels, kernel_size))
     our_model.add(Flatten())
     our_model.add(Dense(24, activation='relu'))
     our_model.add(Dropout(0.4))
