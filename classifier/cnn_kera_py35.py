@@ -2,41 +2,20 @@ import dataLoader as loader
 import numpy as np
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten
-from keras.layers import Convolution2D, AveragePooling2D, MaxPooling2D
+from keras.layers import Convolution2D, MaxPooling2D
 from keras.utils.visualize_util import plot
 from keras.callbacks import TensorBoard, EarlyStopping
 from keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split, KFold
 from residual_blocks import building_residual_block
 
-
-def basicModel():
-    """
-    basic model structure:
-    conv 5*5*5 + averagepooling 2*2 + conv 5*5*15 + averagepooling 3*3 + flatten + dense 30 + softmax
-    """
-    our_model = Sequential()
-    our_model.add(Convolution2D(5, 5, 5, activation='relu', input_shape=INPUT_SHAPE))
-    our_model.add(AveragePooling2D(pool_size=(2, 2)))
-    our_model.add(Convolution2D(15, 5, 5, activation='relu'))
-    our_model.add(AveragePooling2D(pool_size=(3, 3)))
-    our_model.add(Flatten())
-    our_model.add(Dense(30, activation='relu'))
-    our_model.add(Dropout(0.5))
-    our_model.add(Dense(1, activation='sigmoid'))
-    our_model.compile(loss='binary_crossentropy',
-                      optimizer='adam', metrics=['accuracy'])
-    plot(our_model, to_file='basic_model.png')
-    return our_model
-
-
-def CnnModel():
+def CnnModel(input_shape):
     """
     deep model structure:
-    conv 3*3*8 + maxpooling 2*2 + conv 3*3*16 + maxpooling 2*2 + flatten + dense 16 + sigmoid
+    conv 3*3*8 + maxpooling 2*2 + conv 3*3*16 + maxpooling 2*2 + flatten + dense 24 + sigmoid
     """
     our_model = Sequential()
-    our_model.add(Convolution2D(8, 3, 3, activation='relu', input_shape=INPUT_SHAPE))
+    our_model.add(Convolution2D(8, 3, 3, activation='relu', input_shape=input_shape))
     our_model.add(MaxPooling2D(pool_size=(2, 2)))
     our_model.add(Convolution2D(16, 3, 3, activation='relu'))
     our_model.add(MaxPooling2D(pool_size=(2, 2)))
@@ -50,23 +29,23 @@ def CnnModel():
     return our_model
 
 
-def ResModel(n_channels=3):
+def ResModel(n_channels=3, input_shpae):
     """
     residual model structure:
     input +
     [conv 3*3*n_channels + conv 3*3*n_channels] * num_res_blocks +
     flatten +
-    softmax
+    sigmoid
     """
     our_model = Sequential()
     num_res_clocks = 3
     kernel_size = (3, 3)
     # build first layer
-    our_model.add(building_residual_block(INPUT_SHAPE, n_channels, kernel_size))
+    our_model.add(building_residual_block(input_shpae, n_channels, kernel_size))
     for i in range(num_res_clocks - 1):
-        our_model.add(building_residual_block((INPUT_SHAPE[0], INPUT_SHAPE[1], n_channels), n_channels, kernel_size))
+        our_model.add(building_residual_block((input_shpae[0], input_shpae[1], n_channels), n_channels, kernel_size))
     our_model.add(Flatten())
-    our_model.add(Dense(16, activation='relu'))
+    our_model.add(Dense(24, activation='relu'))
     our_model.add(Dropout(0.4))
     our_model.add(Dense(1, activation='sigmoid'))
     our_model.compile(loss='binary_crossentropy',
@@ -122,12 +101,12 @@ def test_car_level(test_data, models):
     predict_results = np.zeros(shape=(len(models), test_num, 1))
     for i in range(len(models)):
         predict_results[i] = models[i].predict(X_test)
-    
+
     # calculate prediction accuracy by majority voting
     predict_results = np.around(predict_results)
     predict_results = np.mean(predict_results, axis=0)
     predict_results = np.around(predict_results).astype(int)
-    accuracy = np.sum(predict_results==Y_test) / Y_test.size
+    accuracy = np.sum(predict_results == Y_test) / Y_test.size
 
     print(accuracy)
     return accuracy  # accuracy
@@ -186,31 +165,32 @@ def predict_one_car_ensemble(car_data, day_models, car_models):
     """
     ensemble two models for prediction
     """
-    Y_pred_models = np.zeros(shape=(len(day_models)+len(car_models), 1))
+    Y_pred_models = np.zeros(shape=(len(day_models) + len(car_models), 1))
     X_day, Y_day = construct_X_Y_day_level(car_data)
     for i in range(len(day_models)):
         Y_pred_days = day_models[i].predict(X_day)
-        Y_pred_models[i] = np.around(np.mean(np.around(Y_pred_days))).reshape(1,1)
+        Y_pred_models[i] = np.around(np.mean(np.around(Y_pred_days))).reshape(1, 1)
 
     X_car, Y_car = construct_X_Y_car_level(car_data)
-    for i in range(len(car_models)):    
-        Y_pred_models[len(day_models)+i] = car_models[i].predict(X_car)
+    for i in range(len(car_models)):
+        Y_pred_models[len(day_models) + i] = car_models[i].predict(X_car)
 
     Y_pred_ensemble = np.mean(Y_pred_models)
     return Y_pred_ensemble
 
 
-def train(X, Y, model, num_batch, num_epoch, is_augmentation, augmentation_times):
+def train(X, Y, model, num_batch, num_epoch, augmentation_times=0):
     """
     if augmented, use augmented data to train the model
     """
-    if is_augmentation:
+    if augmentation_times > 0:
         train_data_generator = ImageDataGenerator(rotation_range=40, horizontal_flip=True)  # , shear_range=0.2
         train_generator = train_data_generator.flow(X, Y, batch_size=num_batch)
         model.fit_generator(train_generator, samples_per_epoch=augmentation_times * X.shape[0], nb_epoch=num_epoch)
     else:
         model.fit(X_train, Y_train, batch_size=num_batch, nb_epoch=num_epoch, verbose=1)
     return model
+
 
 def bootstrap(X_train, Y_train):
     X_train_boot = np.zeros(shape=X_train.shape)
@@ -222,6 +202,42 @@ def bootstrap(X_train, Y_train):
     return X_train_boot, Y_train_boot
 
 
+def training_on_vin(vin_data, bagging_times=5, num_batch=4, num_epoch=10):
+    """
+    Training both car_level and day_level classifiersn the vin_data
+    return multiple tranied models for either car_level or day_level if bagging is used
+    return: (car_models, day_models)
+    """
+    # car level
+    X_train, Y_train = construct_X_Y_car_level(vin_data)
+    if bagging_times == 0:  # no bagging
+        car_model = CnnModel(input_shape=(24, 24, 8))
+        car_model = train(X_train, Y_train, car_model, num_batch, num_epoch)
+        car_models = [car_model]
+    else:
+        car_models = []
+        for each_boot in range(bagging_times):
+            car_model = CnnModel(input_shape=(24, 24, 8))
+            X_train_boot, Y_train_boot = bootstrap(X_train, Y_train)
+            car_model = train(X_train_boot, Y_train_boot, car_model, num_batch, num_epoch)
+            car_models.append(car_model)
+
+    # day model
+    X_train, Y_train = construct_X_Y_day_level(train_data)
+    if bagging_times == 0:
+        day_model = CnnModel(input_shape=(24, 24, 1))
+        day_model = train(X_train, Y_train, day_model, num_batch, num_epoch)
+        day_models = [day_model]
+    else:
+        day_models = []
+        for each_boot in range(bagging_times):
+            day_model = CnnModel(input_shape=(24, 24, 1))
+            X_train_boot, Y_train_boot = bootstrap(X_train, Y_train)
+            day_model = train(X_train_boot, Y_train_boot, day_model, num_batch, num_epoch,
+                              is_data_augmentation, times_of_augmentation)
+            day_models.append(day_model)
+    return (car_models, day_models)
+
 if __name__ == "__main__":
     np.random.seed(123)  # expect reproduction, but Keras@Tensorflow still has problems (Keras Issue#2280)
     data = loader.mapFile()
@@ -229,9 +245,7 @@ if __name__ == "__main__":
     N = 5
     kf = KFold(n_splits=N)
     eval_measures = np.zeros((N, 3))  # index 0: ensemble acc, 1: car_level acc, 2: day_level acc
-    bagging = True # whether use bagging
-    bagging_times = 11 # times for bootstrap samples
-
+    bagging_times = 5  # times for bootstrap samples; 0 - no bagging
 
     ensemble = True  # use both car_level and day_level model?
     car_level = True  # car_level or day_level, only valid when ensemble is False
@@ -239,9 +253,7 @@ if __name__ == "__main__":
     num_batch = 4
 
     # used_model = basicModel  # choose from ResModel, CnnModel, basicModel
-
-    is_data_augmentation = False  # use data augementation?
-    times_of_augmentation = 3  # how many times more training pictures generated compared to original data
+    times_of_augmentation = 0  # how many times more training pictures generated compared to original data
 
     # cross validation
     all_car_ids = np.array(list(data.keys()))
@@ -253,12 +265,11 @@ if __name__ == "__main__":
 
         # car model
         if ensemble or car_level:
-            INPUT_SHAPE = (24, 24, 8)
             X_train, Y_train = construct_X_Y_car_level(train_data)
-            if not bagging:
-                car_model = CnnModel()
+            if bagging_times == 0:
+                car_model = CnnModel(input_shape=(24, 24, 8))
                 car_model = train(X_train, Y_train, car_model, num_batch, num_epoch,
-                              is_data_augmentation, times_of_augmentation)
+                                  times_of_augmentation)
                 car_models = [car_model]
             else:
                 car_models = []
@@ -266,18 +277,17 @@ if __name__ == "__main__":
                     car_model = CnnModel()
                     X_train_boot, Y_train_boot = bootstrap(X_train, Y_train)
                     car_model = train(X_train_boot, Y_train_boot, car_model, num_batch, num_epoch,
-                                is_data_augmentation, times_of_augmentation)
+                                      times_of_augmentation)
                     car_models.append(car_model)
             eval_measures[cnt, 1] = test_car_level(test_data, car_models)
 
         # day model
         if ensemble or (not car_level):
-            INPUT_SHAPE = (24, 24, 1)
             X_train, Y_train = construct_X_Y_day_level(train_data)
-            if not bagging:
-                day_model = CnnModel()
+            if bagging_times == 0:
+                day_model = CnnModel(input_shape=(24, 24, 1))
                 day_model = train(X_train, Y_train, day_model, num_batch, num_epoch,
-                          is_data_augmentation, times_of_augmentation)
+                                  times_of_augmentation)
                 day_models = [day_model]
             else:
                 day_models = []
@@ -285,8 +295,8 @@ if __name__ == "__main__":
                     day_model = CnnModel()
                     X_train_boot, Y_train_boot = bootstrap(X_train, Y_train)
                     day_model = train(X_train_boot, Y_train_boot, day_model, num_batch, num_epoch,
-                                is_data_augmentation, times_of_augmentation)
-                    day_models.append(day_model)                   
+                                      times_of_augmentation)
+                    day_models.append(day_model)
             eval_measures[cnt, 2] = test_day_level(test_data, day_models)
 
         # ensemble
